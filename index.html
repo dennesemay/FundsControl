@@ -50,27 +50,106 @@
 
     .unpaid{ background:#ffe5e5; }
     .paid{ background:#e5ffe5; }
+
+    /* LOGIN SCREEN */
+    #loginScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .loginBox {
+      background: white;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    .loginBox h2 {
+      margin-bottom: 20px;
+    }
+
+    .loginBox input {
+      width: 200px;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    .loginBox button {
+      padding: 10px 20px;
+      margin-top: 10px;
+    }
+
+    #modeIndicator {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 10px 15px;
+      border-radius: 5px;
+      font-weight: bold;
+      z-index: 999;
+    }
+
+    .adminMode {
+      background: #28a745;
+      color: white;
+    }
+
+    .viewerMode {
+      background: #ffc107;
+      color: black;
+    }
+
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
 
-<body onload="loadData()">
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="loginBox">
+    <h2>🔐 Team Funds Tracker</h2>
+    <p>Enter password to edit, or leave blank to view only</p>
+    <input type="password" id="passwordInput" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+</div>
+
+<!-- MODE INDICATOR -->
+<div id="modeIndicator"></div>
+
+<!-- APP CONTENT -->
+<div id="appContent" class="hidden">
 
 <h2>Team Funds Tracker</h2>
 
-<div class="section">
+<div class="section" id="setBalanceSection">
   <h3>Set Starting Balance</h3>
   <input type="number" id="startingTotal" placeholder="Total Funds">
   <input type="number" id="startingCash" placeholder="Cash on Hand">
   <button onclick="setStartingBalance()">Set Balance</button>
 </div>
 
-<div class="section">
+<div class="section" id="addPlayerSection">
   <h3>Add Player</h3>
   <input type="text" id="playerName" placeholder="Player Name">
   <button onclick="addPlayer()">Add</button>
 </div>
 
-<div class="section">
+<div class="section" id="addAbsenceSection">
   <h3>Add Absence</h3>
   <select id="absencePlayer"></select>
   <input type="text" id="absenceDate" placeholder="Date">
@@ -78,14 +157,14 @@
   <button onclick="addAbsence()">Record Absence</button>
 </div>
 
-<div class="section">
+<div class="section" id="recordPaymentSection">
   <h3>Record Payment</h3>
   <select id="paymentPlayer"></select>
   <input type="number" id="paymentAmount" placeholder="Payment Amount">
   <button onclick="recordPayment()">Record Payment</button>
 </div>
 
-<div class="section">
+<div class="section" id="recordExpenseSection">
   <h3>Record Expense</h3>
   <input type="text" id="expenseDesc" placeholder="Expense Description">
   <input type="number" id="expenseAmount" placeholder="Expense Amount">
@@ -103,8 +182,11 @@
   <ul id="expensesList"></ul>
 </div>
 
-<div class="section">
+<div class="section" id="clearDataSection">
   <button onclick="clearAllData()">Clear All Data</button>
+  <button onclick="logout()" style="background:#dc3545;">Logout</button>
+</div>
+
 </div>
 
 <script type="module">
@@ -114,13 +196,14 @@
 
   // Firebase configuration
   const firebaseConfig = {
-    apiKey: "AIzaSyDN6viACTWUX3lenupQ4aZl4p6IROghGt4",
-    authDomain: "funds-control.firebaseapp.com",
-    projectId: "funds-control",
-    storageBucket: "funds-control.firebasestorage.app",
-    messagingSenderId: "16631067069",
-    appId: "1:16631067069:web:d7ec4d6171f94e740e22d4",
-    measurementId: "G-BSJZCC8F5N"
+    apiKey: "AIzaSyDfYRtZHEvu8qkpaaTZ_Wr79efpy5ODI9c",
+    authDomain: "funds-tracker-d9188.firebaseapp.com",
+    databaseURL: "https://funds-tracker-d9188-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "funds-tracker-d9188",
+    storageBucket: "funds-tracker-d9188.firebasestorage.app",
+    messagingSenderId: "400103942864",
+    appId: "1:400103942864:web:46dfd36dd4c89c6d420cd5",
+    measurementId: "G-PYYJ2SBXY8"
   };
 
   // Initialize Firebase
@@ -131,6 +214,74 @@
   let expenses = [];
   let startingTotal = 0;
   let startingCash = 0;
+  let isAdmin = false;
+
+  const ADMIN_PASSWORD = "dentinese84";
+
+  // LOGIN
+  window.login = function(){
+    const password = document.getElementById("passwordInput").value;
+    
+    if(password === ADMIN_PASSWORD){
+      isAdmin = true;
+      showApp();
+      updateModeIndicator();
+    } else if(password === ""){
+      isAdmin = false;
+      showApp();
+      updateModeIndicator();
+    } else {
+      alert("Invalid password!");
+    }
+  }
+
+  // LOGOUT
+  window.logout = function(){
+    isAdmin = false;
+    document.getElementById("passwordInput").value = "";
+    document.getElementById("appContent").classList.add("hidden");
+    document.getElementById("loginScreen").style.display = "flex";
+  }
+
+  // SHOW APP
+  function showApp(){
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("appContent").classList.remove("hidden");
+    loadData();
+  }
+
+  // UPDATE MODE INDICATOR
+  function updateModeIndicator(){
+    const indicator = document.getElementById("modeIndicator");
+    if(isAdmin){
+      indicator.textContent = "✏️ Admin Mode";
+      indicator.className = "adminMode";
+    } else {
+      indicator.textContent = "🔓 Viewer Mode";
+      indicator.className = "viewerMode";
+    }
+  }
+
+  // HIDE/SHOW EDIT SECTIONS
+  function updateEditSections(){
+    const editSections = [
+      "setBalanceSection",
+      "addPlayerSection",
+      "addAbsenceSection",
+      "recordPaymentSection",
+      "recordExpenseSection",
+      "clearDataSection"
+    ];
+
+    editSections.forEach(id => {
+      const section = document.getElementById(id);
+      if(isAdmin){
+        section.classList.remove("hidden");
+      } else {
+        section.classList.add("hidden");
+      }
+    });
+  }
 
   // SAVE TO FIREBASE
   async function saveData(){
@@ -164,6 +315,7 @@
       }
       refreshDropdowns();
       updateBalances();
+      updateEditSections();
     });
   }
 
@@ -183,16 +335,18 @@
   }
 
   // STARTING BALANCE
-  function setStartingBalance(){
+  window.setStartingBalance = function(){
+    if(!isAdmin) return;
     startingTotal = parseFloat(document.getElementById("startingTotal").value) || 0;
     startingCash = parseFloat(document.getElementById("startingCash").value) || 0;
-
+    document.getElementById("startingTotal").value = "";
+    document.getElementById("startingCash").value = "";
     saveData();
-    updateBalances();
   }
 
   // ADD PLAYER
-  function addPlayer(){
+  window.addPlayer = function(){
+    if(!isAdmin) return;
     let name = document.getElementById("playerName").value.trim();
 
     if(!name) return alert("Enter player name.");
@@ -204,11 +358,11 @@
 
     refreshDropdowns();
     saveData();
-    updateBalances();
   }
 
   // ADD ABSENCE
-  function addAbsence(){
+  window.addAbsence = function(){
+    if(!isAdmin) return;
     let name = document.getElementById("absencePlayer").value;
     let date = document.getElementById("absenceDate").value.trim();
     let amount = parseFloat(document.getElementById("absenceAmount").value) || 100;
@@ -219,12 +373,15 @@
     player.absences.push({ date:date || "No Date", amount, paidAmount:0 });
     player.owes += amount;
 
+    document.getElementById("absenceDate").value = "";
+    document.getElementById("absenceAmount").value = "";
+
     saveData();
-    updateBalances();
   }
 
   // PAYMENT
-  function recordPayment(){
+  window.recordPayment = function(){
+    if(!isAdmin) return;
     let name = document.getElementById("paymentPlayer").value;
     let amount = parseFloat(document.getElementById("paymentAmount").value);
 
@@ -245,12 +402,13 @@
       }
     }
 
+    document.getElementById("paymentAmount").value = "";
     saveData();
-    updateBalances();
   }
 
   // EXPENSE
-  function recordExpense(){
+  window.recordExpense = function(){
+    if(!isAdmin) return;
     let desc = document.getElementById("expenseDesc").value.trim();
     let amount = parseFloat(document.getElementById("expenseAmount").value);
 
@@ -258,12 +416,15 @@
 
     expenses.push({desc, amount});
 
+    document.getElementById("expenseDesc").value = "";
+    document.getElementById("expenseAmount").value = "";
+
     saveData();
-    updateBalances();
   }
 
   // DELETE ABSENCE
-  function deleteAbsence(playerName, index){
+  window.deleteAbsence = function(playerName, index){
+    if(!isAdmin) return;
     let player = players.find(p=>p.name===playerName);
     if(!player) return;
 
@@ -274,18 +435,18 @@
     player.absences.splice(index,1);
 
     saveData();
-    updateBalances();
   }
 
   // DELETE EXPENSE
-  function deleteExpense(index){
+  window.deleteExpense = function(index){
+    if(!isAdmin) return;
     expenses.splice(index,1);
     saveData();
-    updateBalances();
   }
 
   // RESET
-  function clearAllData(){
+  window.clearAllData = function(){
+    if(!isAdmin) return;
     if(confirm("Clear all data?")){
       players = [];
       expenses = [];
@@ -293,8 +454,6 @@
       startingCash = 0;
 
       saveData();
-      refreshDropdowns();
-      updateBalances();
     }
   }
 
@@ -319,12 +478,16 @@
 
           let rowClass = abs.paidAmount >= abs.amount ? "paid":"unpaid";
 
+          let actionBtn = isAdmin 
+            ? `<button onclick="deleteAbsence('${player.name}', ${idx})">Delete</button>`
+            : "";
+
           table += `
             <tr class="${rowClass}">
               <td>${abs.date}</td>
               <td>${abs.amount}</td>
               <td>${status}</td>
-              <td><button onclick="deleteAbsence('${player.name}', ${idx})">Delete</button></td>
+              <td>${actionBtn}</td>
             </tr>`;
         });
 
@@ -352,23 +515,14 @@
     list.innerHTML = "";
 
     expenses.forEach((e,i)=>{
-      list.innerHTML += `<li>${e.desc} - ${e.amount}
-        <button onclick="deleteExpense(${i})">Delete</button></li>`;
+      let deleteBtn = isAdmin 
+        ? `<button onclick="deleteExpense(${i})">Delete</button>`
+        : "";
+      
+      list.innerHTML += `<li>${e.desc} - ${e.amount} ${deleteBtn}</li>`;
     });
   }
 
-  // Make functions global
-  window.setStartingBalance = setStartingBalance;
-  window.addPlayer = addPlayer;
-  window.addAbsence = addAbsence;
-  window.recordPayment = recordPayment;
-  window.recordExpense = recordExpense;
-  window.deleteAbsence = deleteAbsence;
-  window.deleteExpense = deleteExpense;
-  window.clearAllData = clearAllData;
-
-  // Load data on page load
-  loadData();
 </script>
 
 </body>
