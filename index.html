@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team Funds Tracker</title>
+
+  <style>
+    body{
+      font-family: Arial, sans-serif;
+      margin:20px;
+      background:#f7f7f7;
+    }
+
+    h2{
+      text-align:center;
+    }
+
+    .section{
+      background:white;
+      padding:15px;
+      margin-bottom:20px;
+      border-radius:10px;
+      box-shadow:0 2px 6px rgba(0,0,0,.08);
+    }
+
+    input, button, select{
+      margin:5px;
+      padding:8px;
+      border-radius:5px;
+    }
+
+    button{
+      background:#2d89ef;
+      color:white;
+      border:none;
+      cursor:pointer;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      margin-top:10px;
+    }
+
+    th, td{
+      border:1px solid #ddd;
+      padding:10px;
+    }
+
+    .unpaid{ background:#ffe5e5; }
+    .paid{ background:#e5ffe5; }
+  </style>
+</head>
+
+<body>
+
+<h2>Team Funds Tracker</h2>
+
+<div class="section">
+  <h3>Set Starting Balance</h3>
+  <input type="number" id="startingTotal" placeholder="Total Funds">
+  <input type="number" id="startingCash" placeholder="Cash on Hand">
+  <button onclick="setStartingBalance()">Set Balance</button>
+</div>
+
+<div class="section">
+  <h3>Add Player</h3>
+  <input type="text" id="playerName" placeholder="Player Name">
+  <button onclick="addPlayer()">Add</button>
+</div>
+
+<div class="section">
+  <h3>Add Absence</h3>
+  <select id="absencePlayer"></select>
+  <input type="text" id="absenceDate" placeholder="Date">
+  <input type="number" id="absenceAmount" placeholder="Amount (default 100)">
+  <button onclick="addAbsence()">Record Absence</button>
+</div>
+
+<div class="section">
+  <h3>Record Payment</h3>
+  <select id="paymentPlayer"></select>
+  <input type="number" id="paymentAmount" placeholder="Payment Amount">
+  <button onclick="recordPayment()">Record Payment</button>
+</div>
+
+<div class="section">
+  <h3>Record Expense</h3>
+  <input type="text" id="expenseDesc" placeholder="Expense Description">
+  <input type="number" id="expenseAmount" placeholder="Expense Amount">
+  <button onclick="recordExpense()">Record Expense</button>
+</div>
+
+<div class="section">
+  <h3>Player Records</h3>
+  <div id="balancesTable"></div>
+</div>
+
+<div class="section">
+  <h3>Funds Summary</h3>
+  <div id="fundsSummary"></div>
+  <ul id="expensesList"></ul>
+</div>
+
+<div class="section">
+  <button onclick="clearAllData()">Clear All Data</button>
+</div>
+
+<script type="module">
+  // Import Firebase functions
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-database.js";
+
+  // Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDN6viACTWUX3lenupQ4aZl4p6IROghGt4",
+    authDomain: "funds-control.firebaseapp.com",
+    projectId: "funds-control",
+    storageBucket: "funds-control.firebasestorage.app",
+    messagingSenderId: "16631067069",
+    appId: "1:16631067069:web:d7ec4d6171f94e740e22d4",
+    measurementId: "G-BSJZCC8F5N"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const database = getDatabase(app);
+
+  let players = [];
+  let expenses = [];
+  let startingTotal = 0;
+  let startingCash = 0;
+
+  // SAVE TO FIREBASE
+  async function saveData(){
+    try {
+      await set(ref(database, 'teamFunds'), {
+        players,
+        expenses,
+        startingTotal,
+        startingCash
+      });
+    } catch (error) {
+      console.error("Error saving data:", error);
+    }
+  }
+
+  // LOAD FROM FIREBASE
+  function loadData(){
+    const dbRef = ref(database, 'teamFunds');
+    onValue(dbRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        players = data.players || [];
+        expenses = data.expenses || [];
+        startingTotal = data.startingTotal || 0;
+        startingCash = data.startingCash || 0;
+      } else {
+        players = [];
+        expenses = [];
+        startingTotal = 0;
+        startingCash = 0;
+      }
+      refreshDropdowns();
+      updateBalances();
+    });
+  }
+
+  // DROPDOWNS
+  function refreshDropdowns(){
+    ["absencePlayer","paymentPlayer"].forEach(id=>{
+      let dropdown = document.getElementById(id);
+      dropdown.innerHTML = "";
+
+      players.forEach(player=>{
+        let option = document.createElement("option");
+        option.value = player.name;
+        option.textContent = player.name;
+        dropdown.appendChild(option);
+      });
+    });
+  }
+
+  // STARTING BALANCE
+  function setStartingBalance(){
+    startingTotal = parseFloat(document.getElementById("startingTotal").value) || 0;
+    startingCash = parseFloat(document.getElementById("startingCash").value) || 0;
+
+    saveData();
+    updateBalances();
+  }
+
+  // ADD PLAYER
+  function addPlayer(){
+    let name = document.getElementById("playerName").value.trim();
+
+    if(!name) return alert("Enter player name.");
+    if(players.some(p=>p.name===name)) return alert("Player exists.");
+
+    players.push({ name, owes:0, paid:0, absences:[] });
+
+    document.getElementById("playerName").value = "";
+
+    refreshDropdowns();
+    saveData();
+    updateBalances();
+  }
+
+  // ADD ABSENCE
+  function addAbsence(){
+    let name = document.getElementById("absencePlayer").value;
+    let date = document.getElementById("absenceDate").value.trim();
+    let amount = parseFloat(document.getElementById("absenceAmount").value) || 100;
+
+    let player = players.find(p=>p.name===name);
+    if(!player) return alert("Player not found.");
+
+    player.absences.push({ date:date || "No Date", amount, paidAmount:0 });
+    player.owes += amount;
+
+    saveData();
+    updateBalances();
+  }
+
+  // PAYMENT
+  function recordPayment(){
+    let name = document.getElementById("paymentPlayer").value;
+    let amount = parseFloat(document.getElementById("paymentAmount").value);
+
+    if(isNaN(amount) || amount<=0) return alert("Invalid payment.");
+
+    let player = players.find(p=>p.name===name);
+    if(!player) return;
+
+    for(let abs of player.absences){
+      let remaining = abs.amount - abs.paidAmount;
+      if(remaining>0){
+        let applied = Math.min(amount, remaining);
+        abs.paidAmount += applied;
+        player.paid += applied;
+        player.owes -= applied;
+        amount -= applied;
+        if(amount<=0) break;
+      }
+    }
+
+    saveData();
+    updateBalances();
+  }
+
+  // EXPENSE
+  function recordExpense(){
+    let desc = document.getElementById("expenseDesc").value.trim();
+    let amount = parseFloat(document.getElementById("expenseAmount").value);
+
+    if(!desc || isNaN(amount) || amount<=0) return alert("Invalid expense.");
+
+    expenses.push({desc, amount});
+
+    saveData();
+    updateBalances();
+  }
+
+  // DELETE ABSENCE
+  function deleteAbsence(playerName, index){
+    let player = players.find(p=>p.name===playerName);
+    if(!player) return;
+
+    let abs = player.absences[index];
+    player.owes -= (abs.amount - abs.paidAmount);
+    player.paid -= abs.paidAmount;
+
+    player.absences.splice(index,1);
+
+    saveData();
+    updateBalances();
+  }
+
+  // DELETE EXPENSE
+  function deleteExpense(index){
+    expenses.splice(index,1);
+    saveData();
+    updateBalances();
+  }
+
+  // RESET
+  function clearAllData(){
+    if(confirm("Clear all data?")){
+      players = [];
+      expenses = [];
+      startingTotal = 0;
+      startingCash = 0;
+
+      saveData();
+      refreshDropdowns();
+      updateBalances();
+    }
+  }
+
+  // DISPLAY
+  function updateBalances(){
+    let display = document.getElementById("balancesTable");
+    display.innerHTML = "";
+
+    players.forEach(player=>{
+      display.innerHTML += `<h3>${player.name}</h3>`;
+
+      if(player.absences.length){
+        let table = `<table>
+          <tr><th>Date</th><th>Amount</th><th>Status</th><th>Action</th></tr>`;
+
+        player.absences.forEach((abs, idx)=>{
+          let status = abs.paidAmount >= abs.amount
+            ? "Paid"
+            : abs.paidAmount > 0
+            ? `Partial (${abs.paidAmount}/${abs.amount})`
+            : "Unpaid";
+
+          let rowClass = abs.paidAmount >= abs.amount ? "paid":"unpaid";
+
+          table += `
+            <tr class="${rowClass}">
+              <td>${abs.date}</td>
+              <td>${abs.amount}</td>
+              <td>${status}</td>
+              <td><button onclick="deleteAbsence('${player.name}', ${idx})">Delete</button></td>
+            </tr>`;
+        });
+
+        table += `</table>`;
+        display.innerHTML += table;
+      } else {
+        display.innerHTML += `<p>No absences recorded.</p>`;
+      }
+    });
+
+    let totalExpenses = expenses.reduce((s,e)=>s+e.amount,0);
+    let totalOwed = players.reduce((s,p)=>s+p.owes,0);
+    let totalPaid = players.reduce((s,p)=>s+p.paid,0);
+
+    let cashOnHand = startingCash + totalPaid - totalExpenses;
+    let totalFundValue = cashOnHand + totalOwed;
+
+    document.getElementById("fundsSummary").innerHTML = `
+      Total Fund: ${totalFundValue}<br>
+      Cash: ${cashOnHand}<br>
+      Owed: ${totalOwed}<br>
+      Expenses: ${totalExpenses}`;
+
+    let list = document.getElementById("expensesList");
+    list.innerHTML = "";
+
+    expenses.forEach((e,i)=>{
+      list.innerHTML += `<li>${e.desc} - ${e.amount}
+        <button onclick="deleteExpense(${i})">Delete</button></li>`;
+    });
+  }
+
+  // Make functions global
+  window.setStartingBalance = setStartingBalance;
+  window.addPlayer = addPlayer;
+  window.addAbsence = addAbsence;
+  window.recordPayment = recordPayment;
+  window.recordExpense = recordExpense;
+  window.deleteAbsence = deleteAbsence;
+  window.deleteExpense = deleteExpense;
+  window.clearAllData = clearAllData;
+
+  // Load data on page load
+  loadData();
+</script>
+
+</body>
+</html>
