@@ -4,14 +4,23 @@ A simple and user-friendly web application designed to help teams, sports groups
 
 Features
 🔐 Admin and Viewer modes
+
 👥 Add and manage players
+
 📅 Record player absences with custom fees
-💵 Track payments and remaining balances
+
+💵 Track payments and remaining 
+
 📊 Automatic fund summary calculations
+
 🧾 Expense recording and monitoring
+
 ☁️ Real-time cloud data storage using Firebase
+
 🗑️ Delete records and clear all data when needed
-📱 Simple responsive interface for easy use on desktop and mobile
+
+📱 Simple responsive interface for easy use on desktop and 
+
 Built With
 HTML
 CSS
