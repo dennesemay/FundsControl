@@ -3,6 +3,7 @@
 A simple and user-friendly web application designed to help teams, sports groups, and school organizations manage their funds efficiently. This system allows admins to track player absences, payments, expenses, and overall team balance in real time using Firebase Realtime Database.
 
 Features
+
 🔐 Admin and Viewer modes
 
 👥 Add and manage players
